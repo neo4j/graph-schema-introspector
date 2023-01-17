@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    Copyright (c) 2023 "Neo4j,"
+    Neo4j Sweden AB [https://neo4j.com]
+
+    This file is part of Neo4j.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        https://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0                       http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<groupId>org.neo4j.example</groupId>
+	<artifactId>procedure-template</artifactId>
+	<version>1.0.0-SNAPSHOT</version>
+
+	<packaging>jar</packaging>
+	<name>neo4j-schema-introspector</name>
+	<description>UDF for estimating a Neo4j schema and exporting it into various formats.</description>
+
+	<inceptionYear>2023</inceptionYear>
+	<organization>
+		<name>Neo4j, Neo4j Sweden AB</name>
+		<url>https://neo4j.com</url>
+	</organization>
+	<licenses>
+		<license>
+			<name>The Apache Software License, Version 2.0</name>
+			<url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+			<distribution>repo</distribution>
+		</license>
+	</licenses>
+
+	<developers>
+		<developer>
+			<id>msimons</id>
+			<name>Michael Simons</name>
+			<email>michael.simons at neo4j.com</email>
+			<organization>Neo Technology</organization>
+			<organizationUrl>https://neo4j.com</organizationUrl>
+			<roles>
+				<role>Project Lead</role>
+			</roles>
+			<timezone>+1</timezone>
+		</developer>
+	</developers>
+
+	<properties>
+		<assertj.version>3.22.0</assertj.version>
+		<checkstyle.version>10.6.0</checkstyle.version>
+		<jackson.version>2.14.1</jackson.version>
+		<java.version>17</java.version>
+		<junit-jupiter.version>5.9.2</junit-jupiter.version>
+		<license-maven-plugin.version>4.2.rc2</license-maven-plugin.version>
+		<maven-checkstyle-plugin.version>3.2.1</maven-checkstyle-plugin.version>
+		<maven-compiler-plugin.version>3.10.1</maven-compiler-plugin.version>
+		<maven-enforcer-plugin.version>3.0.0</maven-enforcer-plugin.version>
+		<maven-shade-plugin.version>3.4.1</maven-shade-plugin.version>
+		<maven-surefire-plugin.version>3.0.0-M8</maven-surefire-plugin.version>
+		<maven.compiler.release>${java.version}</maven.compiler.release>
+		<maven.version>3.8.7</maven.version>
+		<neo4j-java-driver.version>5.4.0</neo4j-java-driver.version>
+		<neo4j.version>5.3.0</neo4j.version>
+
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+		<sortpom-maven-plugin.version>3.2.0</sortpom-maven-plugin.version>
+		<tsid-creator.version>5.2.0</tsid-creator.version>
+	</properties>
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>com.fasterxml.jackson</groupId>
+				<artifactId>jackson-bom</artifactId>
+				<version>${jackson.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
+	<dependencies>
+		<dependency>
+			<groupId>com.github.f4b6a3</groupId>
+			<artifactId>tsid-creator</artifactId>
+			<version>${tsid-creator.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.neo4j</groupId>
+			<artifactId>neo4j</artifactId>
+			<version>${neo4j.version}</version>
+			<scope>provided</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.assertj</groupId>
+			<artifactId>assertj-core</artifactId>
+			<version>${assertj.version}</version>
+			<scope>test</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter-engine</artifactId>
+			<version>${junit-jupiter.version}</version>
+			<scope>test</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.neo4j.driver</groupId>
+			<artifactId>neo4j-java-driver</artifactId>
+			<version>${neo4j-java-driver.version}</version>
+			<scope>test</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.neo4j.test</groupId>
+			<artifactId>neo4j-harness</artifactId>
+			<version>${neo4j.version}</version>
+			<scope>test</scope>
+		</dependency>
+
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>com.mycila</groupId>
+				<artifactId>license-maven-plugin</artifactId>
+				<version>${license-maven-plugin.version}</version>
+				<configuration>
+					<header>etc/license.tpl</header>
+					<strictCheck>true</strictCheck>
+					<mapping>
+						<factories>SCRIPT_STYLE</factories>
+					</mapping>
+					<properties>
+						<year>2023</year>
+					</properties>
+					<includes>
+						<include>**</include>
+					</includes>
+					<excludes>
+						<exclude>**/*.adoc</exclude>
+						<exclude>**/*.cypher</exclude>
+						<exclude>**/*.tpl</exclude>
+					</excludes>
+				</configuration>
+				<executions>
+					<execution>
+						<id>validate</id>
+						<goals>
+							<goal>check</goal>
+						</goals>
+						<phase>validate</phase>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>com.github.ekryd.sortpom</groupId>
+				<artifactId>sortpom-maven-plugin</artifactId>
+				<version>${sortpom-maven-plugin.version}</version>
+				<configuration>
+					<encoding>${project.build.sourceEncoding}</encoding>
+					<keepBlankLines>true</keepBlankLines>
+					<nrOfIndentSpace>-1</nrOfIndentSpace>
+					<sortProperties>true</sortProperties>
+					<sortDependencies>scope,groupId,artifactId</sortDependencies>
+					<createBackupFile>false</createBackupFile>
+					<expandEmptyElements>false</expandEmptyElements>
+				</configuration>
+				<executions>
+					<execution>
+						<goals>
+							<goal>sort</goal>
+						</goals>
+						<phase>verify</phase>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-enforcer-plugin</artifactId>
+				<version>${maven-enforcer-plugin.version}</version>
+				<executions>
+					<execution>
+						<id>enforce</id>
+						<goals>
+							<goal>enforce</goal>
+						</goals>
+						<phase>validate</phase>
+						<configuration>
+							<rules>
+								<requireJavaVersion>
+									<version>${java.version}</version>
+								</requireJavaVersion>
+								<requireMavenVersion>
+									<version>${maven.version}</version>
+								</requireMavenVersion>
+							</rules>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-checkstyle-plugin</artifactId>
+				<version>${maven-checkstyle-plugin.version}</version>
+				<configuration>
+					<configLocation>etc/checkstyle/config.xml</configLocation>
+					<suppressionsLocation>etc/checkstyle/suppressions.xml</suppressionsLocation>
+					<inputEncoding>${project.build.sourceEncoding}</inputEncoding>
+					<consoleOutput>true</consoleOutput>
+					<failsOnError>true</failsOnError>
+					<includeTestSourceDirectory>true</includeTestSourceDirectory>
+				</configuration>
+				<dependencies>
+					<dependency>
+						<groupId>com.puppycrawl.tools</groupId>
+						<artifactId>checkstyle</artifactId>
+						<version>${checkstyle.version}</version>
+					</dependency>
+				</dependencies>
+				<executions>
+					<execution>
+						<id>validate</id>
+						<goals>
+							<goal>check</goal>
+						</goals>
+						<phase>validate</phase>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<version>${maven-compiler-plugin.version}</version>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>${maven-surefire-plugin.version}</version>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-shade-plugin</artifactId>
+				<version>${maven-shade-plugin.version}</version>
+				<configuration>
+					<createDependencyReducedPom>false</createDependencyReducedPom>
+				</configuration>
+				<executions>
+					<execution>
+						<goals>
+							<goal>shade</goal>
+						</goals>
+						<phase>package</phase>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
+
+	<profiles>
+		<profile>
+			<id>fast</id>
+			<activation>
+				<property>
+					<name>fast</name>
+				</property>
+			</activation>
+			<properties>
+				<asciidoctor.skip>true</asciidoctor.skip>
+				<checkstyle.skip>true</checkstyle.skip>
+				<docker.skip>true</docker.skip>
+				<invoker.skip>true</invoker.skip>
+				<jacoco.skip>true</jacoco.skip>
+				<japicmp.skip>true</japicmp.skip>
+				<jqassistant.skip>true</jqassistant.skip>
+				<license.skip>true</license.skip>
+				<maven.javadoc.skip>true</maven.javadoc.skip>
+				<pmd.skip>true</pmd.skip>
+				<skipITs>true</skipITs>
+				<skipNativeBuild>true</skipNativeBuild>
+				<skipTests>true</skipTests>
+			</properties>
+		</profile>
+	</profiles>
+</project>

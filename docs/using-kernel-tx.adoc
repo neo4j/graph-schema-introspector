@@ -1,0 +1,35 @@
+This is some example code how to retrieve node labels and types with Kernel-Transaction API, but I don't like to go there,
+procedure must be than unrestricted and all of that…
+
+[source,java]
+----
+if (callContext.isSystemDatabase()) {
+    return List.of();
+}
+
+var accessMode = transaction.securityContext().mode();
+var schemaRead = transaction.schemaRead().snapshot();
+Predicate<NamedToken> labelFilter = token -> {
+    var tokenId = token.id();
+    return hasAny(schemaRead.indexesGetForLabel(tokenId)) ||
+           hasAny(schemaRead.constraintsGetForLabel(tokenId)) ||
+           transaction.dataRead().countsForNode(tokenId) > 0;
+};
+labelFilter = labelFilter.and(token -> accessMode.allowsTraverseNode(token.id()));
+
+return StreamSupport.stream(Spliterators.spliteratorUnknownSize(transaction.tokenRead().labelsGetAllTokens(), Spliterator.ORDERED), false)
+    .filter(labelFilter)
+    .map(token -> new NodeLabel(TSID_FACTORY.create().format("nl:%s"), token.name()))
+    .toList();
+
+
+private static boolean hasAny(Iterator<?> iter) {
+	try {
+		return iter.hasNext();
+	} finally {
+		if (iter instanceof Resource) {
+			((Resource) iter).close();
+		}
+	}
+}
+----
