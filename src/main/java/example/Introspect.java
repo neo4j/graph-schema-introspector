@@ -51,7 +51,6 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
@@ -71,8 +70,7 @@ import com.github.f4b6a3.tsid.TsidFactory;
  */
 public class Introspect {
 
-	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
-		.enable(SerializationFeature.INDENT_OUTPUT);
+	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 	private static final TsidFactory TSID_FACTORY = TsidFactory.builder()
 		.withRandomFunction(length -> {
 			final byte[] bytes = new byte[length];
@@ -93,6 +91,7 @@ public class Introspect {
 	public String introspectSchema(@Name("params") Map<String, Object> params) throws Exception {
 
 		var useConstantIds = (boolean) params.getOrDefault("constantIds", true);
+		var prettyPrint = (boolean) params.getOrDefault("prettyPrint", false);
 
 		var nodeLabels = getNodeLabels(useConstantIds);
 		var relationshipTypes = getRelationshipTypes(useConstantIds);
@@ -100,6 +99,9 @@ public class Introspect {
 
 		try (var result = new StringWriter()) {
 			try (var gen = OBJECT_MAPPER.createGenerator(result)) {
+				if (prettyPrint) {
+					gen.useDefaultPrettyPrinter();
+				}
 				gen.writeStartObject();
 				gen.writeObjectFieldStart("graphSchemaRepresentation");
 				gen.writeStringField("version", GRAPH_SCHEMA_REPRESENTATION_VERSION);

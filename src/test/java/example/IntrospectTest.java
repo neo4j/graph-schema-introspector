@@ -80,7 +80,7 @@ class IntrospectTest {
 		     Session session = driver.session()) {
 
 			// When
-			String result = session.run("RETURN db.introspect({}) AS result").single().get("result").asString();
+			String result = session.run("RETURN db.introspect({prettyPrint: true}) AS result").single().get("result").asString();
 
 			System.out.println(result);
 		}
