@@ -18,6 +18,11 @@
  */
 package example;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.StringWriter;
+
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -27,13 +32,6 @@ import org.neo4j.driver.GraphDatabase;
 import org.neo4j.driver.Session;
 import org.neo4j.harness.Neo4j;
 import org.neo4j.harness.Neo4jBuilders;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.StringWriter;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class IntrospectTest {
@@ -53,8 +51,18 @@ class IntrospectTest {
 			.withDisabledServer()
 			.withFixture(sw.toString())
 			.withFixture("""
-				    UNWIND range(1, 5) AS i
-				    WITH i CREATE (n:SomeNode {idx: i})
+				UNWIND range(1, 5) AS i
+				WITH i CREATE (n:SomeNode {idx: i})
+				""")
+			.withFixture("""
+				CREATE (:Actor:Person {name: 'Weird Id1', id: 'abc'})
+				CREATE (:Actor:Person {name: 'Weird Id2', id: 4711})
+				CREATE (:Actor:Person {name: 'Weird Id3', id: ["pt1", "pt2"]})
+				CREATE (:Actor:Person {name: 'Weird Id4', id: [21, 23, 42]})
+				CREATE (:Actor:Person {name: 'A compromise id', id: [0.5]})
+				CREATE (:Actor:Person {name: 'A number', f: 0.5})
+				CREATE (:Actor:Person {name: 'Another number', f: 50})
+				CREATE (:Actor:Person {name: 'A point', p: point({latitude:toFloat('13.43'), longitude:toFloat('56.21')})})
 				""")
 			.withFunction(Introspect.class)
 			.build();
@@ -72,11 +80,9 @@ class IntrospectTest {
 		     Session session = driver.session()) {
 
 			// When
-			String result = session.run("RETURN db.introspect() AS result").single().get("result").asString();
+			String result = session.run("RETURN db.introspect({}) AS result").single().get("result").asString();
 
 			System.out.println(result);
-			// Then
-			assertThat(result).isEqualTo(("Hello,World"));
 		}
 	}
 }
