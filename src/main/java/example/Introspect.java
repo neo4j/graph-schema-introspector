@@ -22,14 +22,18 @@ import java.io.IOException;
 import java.io.Serial;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.BiFunction;
+import java.util.function.BinaryOperator;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -41,6 +45,7 @@ import org.neo4j.graphdb.Resource;
 import org.neo4j.graphdb.Result;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.procedure.Context;
+import org.neo4j.procedure.Description;
 import org.neo4j.procedure.Name;
 import org.neo4j.procedure.UserFunction;
 
@@ -66,7 +71,7 @@ import com.github.f4b6a3.tsid.TsidFactory;
  * <p>
  * The instrospector creates JSON ids based on the labels and types by default. It can alternatively use
  * Time-Sorted Unique Identifiers (TSID) for the ids inside the generated schema by calling it via
- * {@code RETURN db.introspect({constantIds:false}}
+ * {@code RETURN db.introspect({useConstantIds: false}}
  */
 public class Introspect {
 
@@ -77,7 +82,7 @@ public class Introspect {
 			ThreadLocalRandom.current().nextBytes(bytes);
 			return bytes;
 		}).build();
-	public static final String GRAPH_SCHEMA_REPRESENTATION_VERSION = "1.0.1";
+	public static final Pattern ENCLOSING_TICK_MARKS = Pattern.compile("^`(.+)`$");
 
 	public static final Map<String, String> TYPE_MAPPING = Map.of(
 		"Long", "integer",
@@ -88,14 +93,20 @@ public class Introspect {
 	public Transaction transaction;
 
 	@UserFunction(name = "db.introspect")
+	@Description("Call with {useConstantIds: false} to generate substitute ids for all tokens and use {prettyPrint: true} for enabling pretty printing.")
 	public String introspectSchema(@Name("params") Map<String, Object> params) throws Exception {
 
-		var useConstantIds = (boolean) params.getOrDefault("constantIds", true);
+		var useConstantIds = (boolean) params.getOrDefault("useConstantIds", true);
 		var prettyPrint = (boolean) params.getOrDefault("prettyPrint", false);
 
 		var nodeLabels = getNodeLabels(useConstantIds);
 		var relationshipTypes = getRelationshipTypes(useConstantIds);
-		var nodeObjectTypes = getNodeObjectTypes(useConstantIds, nodeLabels);
+
+		var nodeObjectTypeIdGenerator = new CachingUnaryOperator<>(new NodeObjectIdGenerator(useConstantIds));
+		var relationshipObjectIdGenerator = new RelationshipObjectIdGenerator(useConstantIds);
+
+		var nodeObjectTypes = getNodeObjectTypes(nodeObjectTypeIdGenerator, nodeLabels);
+		var relationshipObjectTypes = getRelationshipObjectTypes(nodeObjectTypeIdGenerator, relationshipObjectIdGenerator, relationshipTypes);
 
 		try (var result = new StringWriter()) {
 			try (var gen = OBJECT_MAPPER.createGenerator(result)) {
@@ -104,12 +115,12 @@ public class Introspect {
 				}
 				gen.writeStartObject();
 				gen.writeObjectFieldStart("graphSchemaRepresentation");
-				gen.writeStringField("version", GRAPH_SCHEMA_REPRESENTATION_VERSION);
 				gen.writeFieldName("graphSchema");
 				gen.writeStartObject();
 				writeArray(gen, "nodeLabels", nodeLabels.values());
 				writeArray(gen, "relationshipTypes", relationshipTypes.values());
 				writeArray(gen, "nodeObjectTypes", nodeObjectTypes.values());
+				writeArray(gen, "relationshipObjectTypes", relationshipObjectTypes.values());
 				gen.writeEndObject();
 				gen.writeEndObject();
 				gen.writeEndObject();
@@ -119,78 +130,8 @@ public class Introspect {
 		}
 	}
 
-	private Map<String, NodeObjectType> getNodeObjectTypes(boolean useConstantIds, Map<String, Token> labelIdToToken) throws Exception {
-
-		if (labelIdToToken.isEmpty()) {
-			return Map.of();
-		}
-
-		// language=cypher
-		var query = """
-			CALL db.schema.nodeTypeProperties()
-			YIELD nodeType, nodeLabels, propertyName, propertyTypes, mandatory
-			RETURN *
-			""";
-
-		BiFunction<String, List<String>, String> idGenerator;
-		if (useConstantIds) {
-			idGenerator = (id, nodeLabels) -> {
-				var result = id;
-				for (String nodeLabel : nodeLabels) {
-					result = result.replaceAll(Pattern.quote("`%s`".formatted(nodeLabel)), nodeLabel);
-				}
-				return "n" + result;
-			};
-		} else {
-			idGenerator = (id, nodeLabels) -> TSID_FACTORY.create().format("%S");
-		}
-
-		var nodeObjectTypes = new HashMap<String, NodeObjectType>();
-		transaction.execute(query).accept((Result.ResultVisitor<Exception>) resultRow -> {
-			@SuppressWarnings("unchecked")
-			var nodeLabels = ((List<String>) resultRow.get("nodeLabels"));
-
-			var id = idGenerator.apply(resultRow.getString("nodeType"), nodeLabels);
-			var nodeObject = nodeObjectTypes.computeIfAbsent(id, key -> new NodeObjectType(key, nodeLabels
-				.stream().map(l -> Map.of("ref", labelIdToToken.get(l).id)).toList()));
-			@SuppressWarnings("unchecked")
-			var types = ((List<String>) resultRow.get("propertyTypes")).stream()
-				.map(t -> {
-					String type;
-					String itemType = null;
-					if (t.endsWith("Array")) {
-						type = "array";
-						itemType = t.replace("Array", "");
-						itemType = TYPE_MAPPING.getOrDefault(itemType, itemType).toLowerCase(Locale.ROOT);
-					} else {
-						type = TYPE_MAPPING.getOrDefault(t, t).toLowerCase(Locale.ROOT);
-					}
-					return new Type(type, itemType);
-				}).toList();
-			nodeObject.properties.add(new Property(resultRow.getString("propertyName"), types, resultRow.getBoolean("mandatory")));
-			return true;
-		});
-		return nodeObjectTypes;
+	record Token(@JsonProperty("$id") String id, @JsonProperty("token") String value) {
 	}
-
-	@JsonSerialize(using = TypeSerializer.class)
-	record Type(String value, String itemType) {
-	}
-
-	@JsonPropertyOrder({"token", "type", "mandatory"})
-	record Property(
-		String token,
-		@JsonProperty("type") @JsonSerialize(using = TypeListSerializer.class) List<Type> types,
-		@JsonInclude(Include.NON_DEFAULT) boolean mandatory) {
-	}
-
-	record NodeObjectType(@JsonProperty("$id") String id, List<Map<String, String>> labels, List<Property> properties) {
-
-		NodeObjectType(String id, List<Map<String, String>> labels) {
-			this(id, labels, new ArrayList<>()); // Mutable on purpose
-		}
-	}
-
 
 	private Map<String, Token> getNodeLabels(boolean useConstantIds) throws Exception {
 
@@ -218,7 +159,217 @@ public class Introspect {
 		}
 	}
 
-	record Token(@JsonProperty("$id") String id, @JsonProperty("token") String value) {
+	@JsonSerialize(using = TypeSerializer.class)
+	record Type(String value, String itemType) {
+	}
+
+	@JsonPropertyOrder({"token", "type", "mandatory"})
+	record Property(
+		String token,
+		@JsonProperty("type") @JsonSerialize(using = TypeListSerializer.class) List<Type> types,
+		@JsonInclude(Include.NON_DEFAULT) boolean mandatory) {
+	}
+
+	record NodeObjectType(
+		@JsonProperty("$id") String id,
+		List<Map<String, String>> labels,
+		@JsonInclude(Include.NON_EMPTY) List<Property> properties) {
+
+		NodeObjectType(String id, List<Map<String, String>> labels) {
+			this(id, labels, new ArrayList<>()); // Mutable on purpose
+		}
+	}
+
+	private Map<String, NodeObjectType> getNodeObjectTypes(UnaryOperator<String> idGenerator, Map<String, Token> labelIdToToken) throws Exception {
+
+		if (labelIdToToken.isEmpty()) {
+			return Map.of();
+		}
+
+		// language=cypher
+		var query = """
+			CALL db.schema.nodeTypeProperties()
+			YIELD nodeType, nodeLabels, propertyName, propertyTypes, mandatory
+			RETURN *
+			ORDER BY nodeType ASC
+			""";
+
+		var nodeObjectTypes = new LinkedHashMap<String, NodeObjectType>();
+		transaction.execute(query).accept((Result.ResultVisitor<Exception>) resultRow -> {
+			@SuppressWarnings("unchecked")
+			var nodeLabels = ((List<String>) resultRow.get("nodeLabels")).stream().sorted().toList();
+
+			var id = idGenerator.apply(resultRow.getString("nodeType"));
+			var nodeObject = nodeObjectTypes.computeIfAbsent(id, key -> new NodeObjectType(key, nodeLabels
+				.stream().map(l -> Map.of("ref", labelIdToToken.get(l).id)).toList()));
+			extractProperty(resultRow)
+				.ifPresent(nodeObject.properties()::add);
+
+			return true;
+		});
+		return nodeObjectTypes;
+	}
+
+	record RelationshipObjectType(
+		@JsonProperty("$id") String id,
+		Map<String, String> type,
+		Map<String, String> from,
+		Map<String, String> to,
+		@JsonInclude(Include.NON_EMPTY) List<Property> properties) {
+
+		RelationshipObjectType(String id, Map<String, String> type, Map<String, String> from, Map<String, String> to) {
+			this(id, type, from, to, new ArrayList<>()); // Mutable on purpose
+		}
+	}
+
+	private Map<String, RelationshipObjectType> getRelationshipObjectTypes(
+		UnaryOperator<String> nodeObjectTypeIdGenerator,
+		BinaryOperator<String> idGenerator,
+		Map<String, Token> relationshipIdToToken
+	) throws Exception {
+
+		if (relationshipIdToToken.isEmpty()) {
+			return Map.of();
+		}
+
+		// language=cypher
+		var query = """
+			CALL db.schema.relTypeProperties() YIELD relType, propertyName, propertyTypes, mandatory
+			WITH substring(relType, 2, size(relType)-3) AS relType, propertyName, propertyTypes, mandatory
+			MATCH (n)-[r]->(m) WHERE type(r) = relType
+			WITH DISTINCT labels(n) AS from, labels(m) AS to, relType, propertyName, propertyTypes, mandatory
+			RETURN *
+			ORDER BY relType ASC
+			""";
+
+		var relationshipObjectTypes = new LinkedHashMap<String, RelationshipObjectType>();
+
+		transaction.execute(query).accept((Result.ResultVisitor<Exception>) resultRow -> {
+			var relType = resultRow.getString("relType");
+			@SuppressWarnings("unchecked")
+			var from = nodeObjectTypeIdGenerator.apply(":" + ((List<String>) resultRow.get("from")).stream()
+				.sorted()
+				.map(v -> "`" + v + "`")
+				.collect(Collectors.joining(":")));
+			@SuppressWarnings("unchecked")
+			var to = nodeObjectTypeIdGenerator.apply(":" + ((List<String>) resultRow.get("to")).stream()
+				.sorted()
+				.map(v -> "`" + v + "`")
+				.collect(Collectors.joining(":")));
+
+			var id = idGenerator.apply(relType, to);
+			var relationshipObject = relationshipObjectTypes.computeIfAbsent(id, key ->
+				new RelationshipObjectType(key, Map.of("$ref", relationshipIdToToken.get(relType).id()), Map.of("ref", from), Map.of("$ref", to)));
+			extractProperty(resultRow)
+				.ifPresent(relationshipObject.properties()::add);
+
+			return true;
+		});
+		return relationshipObjectTypes;
+	}
+
+	Optional<Property> extractProperty(Result.ResultRow resultRow) {
+		var propertyName = resultRow.getString("propertyName");
+		if (propertyName == null) {
+			return Optional.empty();
+		}
+
+		@SuppressWarnings("unchecked")
+		var types = ((List<String>) resultRow.get("propertyTypes")).stream()
+			.map(t -> {
+				String type;
+				String itemType = null;
+				if (t.endsWith("Array")) {
+					type = "array";
+					itemType = t.replace("Array", "");
+					itemType = TYPE_MAPPING.getOrDefault(itemType, itemType).toLowerCase(Locale.ROOT);
+				} else {
+					type = TYPE_MAPPING.getOrDefault(t, t).toLowerCase(Locale.ROOT);
+				}
+				return new Type(type, itemType);
+			}).toList();
+
+		return Optional.of(new Property(propertyName, types, resultRow.getBoolean("mandatory")));
+	}
+
+	static String splitStripAndJoin(String value, String prefix) {
+		return Arrays.stream(value.split(":"))
+			.map(String::trim)
+			.filter(Predicate.not(String::isBlank))
+			.map(t -> ENCLOSING_TICK_MARKS.matcher(t).replaceAll(m -> m.group(1)))
+			.collect(Collectors.joining(":", prefix + ":", ""));
+	}
+
+	static class NodeObjectIdGenerator implements UnaryOperator<String> {
+
+		private final boolean useConstantIds;
+
+		NodeObjectIdGenerator(boolean useConstantIds) {
+			this.useConstantIds = useConstantIds;
+		}
+
+		@Override
+		public String apply(String nodeType) {
+
+			if (useConstantIds) {
+				return splitStripAndJoin(nodeType, "n");
+			}
+
+			return TSID_FACTORY.create().format("%S");
+		}
+	}
+
+	/**
+	 * Not thread safe.
+	 */
+	static class RelationshipObjectIdGenerator implements BinaryOperator<String> {
+
+		private final boolean useConstantIds;
+		private final Map<String, Map<String, Integer>> counter = new HashMap<>();
+
+		RelationshipObjectIdGenerator(boolean useConstantIds) {
+			this.useConstantIds = useConstantIds;
+		}
+
+		@Override
+		public String apply(String relType, String target) {
+
+			if (useConstantIds) {
+				var id = splitStripAndJoin(relType, "r");
+				var count = counter.computeIfAbsent(id, ignored -> new HashMap<>());
+				if (count.isEmpty()) {
+					count.put(target, 0);
+					return id;
+				} else if (count.containsKey(target)) {
+					var value = count.get(target);
+					return value == 0 ? id : id + "_" + value;
+				} else {
+					var newValue = count.size();
+					count.put(target, newValue);
+					return id + "_" + newValue;
+				}
+			}
+
+			return TSID_FACTORY.create().format("%S");
+		}
+	}
+
+	/**
+	 * Not thread safe.
+	 */
+	static class CachingUnaryOperator<T> implements UnaryOperator<T> {
+
+		private final Map<T, T> cache = new HashMap<>();
+		private final UnaryOperator<T> delegate;
+
+		CachingUnaryOperator(UnaryOperator<T> delegate) {
+			this.delegate = delegate;
+		}
+
+		@Override
+		public T apply(T s) {
+			return cache.computeIfAbsent(s, delegate);
+		}
 	}
 
 	private void writeArray(JsonGenerator gen, String fieldName, Collection<?> items) throws Exception {
@@ -230,6 +381,9 @@ public class Introspect {
 	}
 
 	static class TypeSerializer extends StdSerializer<Type> {
+
+		@Serial
+		private static final long serialVersionUID = -1260953273076427362L;
 
 		TypeSerializer() {
 			super(Type.class);

@@ -49,11 +49,13 @@ class IntrospectTest {
 
 		this.embeddedDatabaseServer = Neo4jBuilders.newInProcessBuilder()
 			.withDisabledServer()
-			.withFixture(sw.toString())
+			//.withFixture(sw.toString())
+			// language=cypher
 			.withFixture("""
 				UNWIND range(1, 5) AS i
 				WITH i CREATE (n:SomeNode {idx: i})
 				""")
+			// language=cypher
 			.withFixture("""
 				CREATE (:Actor:Person {name: 'Weird Id1', id: 'abc'})
 				CREATE (:Actor:Person {name: 'Weird Id2', id: 4711})
@@ -63,6 +65,11 @@ class IntrospectTest {
 				CREATE (:Actor:Person {name: 'A number', f: 0.5})
 				CREATE (:Actor:Person {name: 'Another number', f: 50})
 				CREATE (:Actor:Person {name: 'A point', p: point({latitude:toFloat('13.43'), longitude:toFloat('56.21')})})
+				CREATE (:L1:`L ``2`) - [:RELATED_TO {since: datetime()}] -> (:L2:L3)
+				CREATE (:L1:L2) - [:RELATED_TO {since: datetime()}] -> (:L2:L3)
+				CREATE (:L1:L2) - [:RELATED_TO {since: datetime()}] -> (:Unrelated)
+				CREATE (:Person) -[:REVIEWED] ->(:Book)
+				CREATE (a:Wurst) -[:```HAT_DEN`] -> (:Salat)
 				""")
 			.withFunction(Introspect.class)
 			.build();
@@ -80,7 +87,7 @@ class IntrospectTest {
 		     Session session = driver.session()) {
 
 			// When
-			String result = session.run("RETURN db.introspect({prettyPrint: true}) AS result").single().get("result").asString();
+			String result = session.run("RETURN db.introspect({useConstantIds: true, prettyPrint: true}) AS result").single().get("result").asString();
 
 			System.out.println(result);
 		}
