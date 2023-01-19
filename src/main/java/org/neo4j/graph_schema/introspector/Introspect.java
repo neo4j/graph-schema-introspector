@@ -16,7 +16,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package example;
+package org.neo4j.graph_schema.introspector;
 
 import java.io.IOException;
 import java.io.Serial;
@@ -93,7 +93,9 @@ public class Introspect {
 	public Transaction transaction;
 
 	@UserFunction(name = "db.introspect")
-	@Description("Call with {useConstantIds: false} to generate substitute ids for all tokens and use {prettyPrint: true} for enabling pretty printing.")
+	@Description("" +
+		"Call with {useConstantIds: false} to generate substitute ids for all tokens and use {prettyPrint: true} for enabling pretty printing;" +
+		"{quoteTokens: false} will disable quotation of tokens.")
 	public String introspectSchema(@Name("params") Map<String, Object> params) throws Exception {
 
 		var useConstantIds = (boolean) params.getOrDefault("useConstantIds", true);

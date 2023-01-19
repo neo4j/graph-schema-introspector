@@ -16,7 +16,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package example;
+package org.neo4j.graph_schema.introspector;
 
 import java.io.BufferedReader;
 import java.io.IOException;
