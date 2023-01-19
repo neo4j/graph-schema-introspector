@@ -174,10 +174,10 @@ public class Introspect {
 
 	record NodeObjectType(
 		@JsonProperty("$id") String id,
-		List<Map<String, String>> labels,
-		@JsonInclude(Include.NON_EMPTY) List<Property> properties) {
+		List<Ref> labels,
+		List<Property> properties) {
 
-		NodeObjectType(String id, List<Map<String, String>> labels) {
+		NodeObjectType(String id, List<Ref> labels) {
 			this(id, labels, new ArrayList<>()); // Mutable on purpose
 		}
 	}
@@ -203,7 +203,7 @@ public class Introspect {
 
 			var id = idGenerator.apply(resultRow.getString("nodeType"));
 			var nodeObject = nodeObjectTypes.computeIfAbsent(id, key -> new NodeObjectType(key, nodeLabels
-				.stream().map(l -> Map.of("ref", labelIdToToken.get(l).id)).toList()));
+				.stream().map(l -> new Ref(labelIdToToken.get(l).id)).toList()));
 			extractProperty(resultRow)
 				.ifPresent(nodeObject.properties()::add);
 
@@ -212,14 +212,12 @@ public class Introspect {
 		return nodeObjectTypes;
 	}
 
-	record RelationshipObjectType(
-		@JsonProperty("$id") String id,
-		Map<String, String> type,
-		Map<String, String> from,
-		Map<String, String> to,
-		@JsonInclude(Include.NON_EMPTY) List<Property> properties) {
+	record Ref(@JsonProperty("$ref") String value) {
+	}
 
-		RelationshipObjectType(String id, Map<String, String> type, Map<String, String> from, Map<String, String> to) {
+	record RelationshipObjectType(@JsonProperty("$id") String id, Ref type, Ref from, Ref to, List<Property> properties) {
+
+		RelationshipObjectType(String id, Ref type, Ref from, Ref to) {
 			this(id, type, from, to, new ArrayList<>()); // Mutable on purpose
 		}
 	}
@@ -261,7 +259,7 @@ public class Introspect {
 
 			var id = idGenerator.apply(relType, to);
 			var relationshipObject = relationshipObjectTypes.computeIfAbsent(id, key ->
-				new RelationshipObjectType(key, Map.of("$ref", relationshipIdToToken.get(relType).id()), Map.of("ref", from), Map.of("$ref", to)));
+				new RelationshipObjectType(key, new Ref(relationshipIdToToken.get(relType).id()), new Ref(from), new Ref(to)));
 			extractProperty(resultRow)
 				.ifPresent(relationshipObject.properties()::add);
 
