@@ -39,6 +39,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import org.neo4j.cypherdsl.support.schema_name.SchemaNames;
 import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.RelationshipType;
 import org.neo4j.graphdb.Resource;
@@ -100,9 +101,10 @@ public class Introspect {
 
 		var useConstantIds = (boolean) params.getOrDefault("useConstantIds", true);
 		var prettyPrint = (boolean) params.getOrDefault("prettyPrint", false);
+		var quoteTokens = (boolean) params.getOrDefault("quoteTokens", true);
 
-		var nodeLabels = getNodeLabels(useConstantIds);
-		var relationshipTypes = getRelationshipTypes(useConstantIds);
+		var nodeLabels = getNodeLabels(useConstantIds, quoteTokens);
+		var relationshipTypes = getRelationshipTypes(useConstantIds, quoteTokens);
 
 		var nodeObjectTypeIdGenerator = new CachingUnaryOperator<>(new NodeObjectIdGenerator(useConstantIds));
 		var relationshipObjectIdGenerator = new RelationshipObjectIdGenerator(useConstantIds);
@@ -135,25 +137,29 @@ public class Introspect {
 	record Token(@JsonProperty("$id") String id, @JsonProperty("token") String value) {
 	}
 
-	private Map<String, Token> getNodeLabels(boolean useConstantIds) throws Exception {
+	private Map<String, Token> getNodeLabels(boolean useConstantIds, boolean quoteTokens) throws Exception {
 
-		return getToken(transaction.getAllLabelsInUse(), Label::name, useConstantIds ? "nl:%s"::formatted : ignored -> TSID_FACTORY.create().format("%S"));
+		return getToken(transaction.getAllLabelsInUse(), Label::name, quoteTokens, useConstantIds ? "nl:%s"::formatted : ignored -> TSID_FACTORY.create().format("%S"));
 	}
 
-	private Map<String, Token> getRelationshipTypes(boolean useConstantIds) throws Exception {
+	private Map<String, Token> getRelationshipTypes(boolean useConstantIds, boolean quoteTokens) throws Exception {
 
-		return getToken(transaction.getAllRelationshipTypesInUse(), RelationshipType::name, useConstantIds ? "rt:%s"::formatted : ignored -> TSID_FACTORY.create().format("%S"));
+		return getToken(transaction.getAllRelationshipTypesInUse(), RelationshipType::name, quoteTokens, useConstantIds ? "rt:%s"::formatted : ignored -> TSID_FACTORY.create().format("%S"));
 	}
 
-	private <T> Map<String, Token> getToken(Iterable<T> tokensInUse, Function<T, String> nameExtractor, UnaryOperator<String> idGenerator) throws Exception {
+	private <T> Map<String, Token> getToken(Iterable<T> tokensInUse, Function<T, String> nameExtractor, boolean quoteTokens, UnaryOperator<String> idGenerator) throws Exception {
 
+		Function<Token, Token> valueMapper = Function.identity();
+		if (quoteTokens) {
+			valueMapper = token -> new Token(token.id(), SchemaNames.sanitize(token.value()).orElse(token.value));
+		}
 		try {
 			return StreamSupport.stream(tokensInUse.spliterator(), false)
 				.map(label -> {
 					var tokenValue = nameExtractor.apply(label);
 					return new Token(idGenerator.apply(tokenValue), tokenValue);
 				})
-				.collect(Collectors.toMap(Token::value, Function.identity()));
+				.collect(Collectors.toMap(Token::value, valueMapper));
 		} finally {
 			if (tokensInUse instanceof Resource resource) {
 				resource.close();

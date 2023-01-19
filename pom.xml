@@ -60,6 +60,7 @@
 	<properties>
 		<assertj.version>3.22.0</assertj.version>
 		<checkstyle.version>10.6.0</checkstyle.version>
+		<cypher-dsl.version>2023.0.0</cypher-dsl.version>
 		<jackson.version>2.14.1</jackson.version>
 		<java.version>17</java.version>
 		<junit-jupiter.version>5.9.2</junit-jupiter.version>
@@ -100,6 +101,11 @@
 			<groupId>com.github.f4b6a3</groupId>
 			<artifactId>tsid-creator</artifactId>
 			<version>${tsid-creator.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.neo4j</groupId>
+			<artifactId>neo4j-cypher-dsl-schema-name-support</artifactId>
+			<version>${cypher-dsl.version}</version>
 		</dependency>
 
 		<dependency>
