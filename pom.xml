@@ -58,11 +58,13 @@
 	</developers>
 
 	<properties>
+		<artifactsDir>${project.build.directory}</artifactsDir>
 		<assertj.version>3.22.0</assertj.version>
 		<checkstyle.version>10.6.0</checkstyle.version>
 		<cypher-dsl.version>2023.0.0</cypher-dsl.version>
 		<jackson.version>2.14.1</jackson.version>
 		<java.version>17</java.version>
+		<jreleaser-maven-plugin.version>1.4.0</jreleaser-maven-plugin.version>
 		<junit-jupiter.version>5.9.2</junit-jupiter.version>
 		<license-maven-plugin.version>4.2.rc2</license-maven-plugin.version>
 		<maven-checkstyle-plugin.version>3.2.1</maven-checkstyle-plugin.version>
@@ -290,6 +292,42 @@
 						<phase>package</phase>
 					</execution>
 				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.jreleaser</groupId>
+				<artifactId>jreleaser-maven-plugin</artifactId>
+				<version>${jreleaser-maven-plugin.version}</version>
+				<configuration>
+					<jreleaser>
+						<project>
+							<name>${project.artifactId}</name>
+						</project>
+						<release>
+							<github>
+								<skipTag>true</skipTag>
+								<tagName>{{projectVersion}}</tagName>
+								<releaseName>{{projectVersion}}</releaseName>
+								<branch>main</branch>
+								<changelog>
+									<formatted>ALWAYS</formatted>
+									<contentTemplate>etc/jreleaser/changelog.md.tpl</contentTemplate>
+									<format>- {{commitShortHash}} {{commitTitle}}</format>
+									<preset>conventional-commits</preset>
+								</changelog>
+							</github>
+						</release>
+						<distributions>
+							<graph-schema-introspector>
+								<type>SINGLE_JAR</type>
+								<artifacts>
+									<artifact>
+										<path>{{artifactsDir}}/{{projectName}}-{{projectVersion}}.jar</path>
+									</artifact>
+								</artifacts>
+							</graph-schema-introspector>
+						</distributions>
+					</jreleaser>
+				</configuration>
 			</plugin>
 		</plugins>
 	</build>
