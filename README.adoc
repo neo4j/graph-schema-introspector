@@ -1,0 +1,76 @@
+= Neo4j Schema Introspector
+Michael Simons <michael.simons@neo4j.com>
+:doctype: article
+:lang: en
+:listing-caption: Listing
+:source-highlighter: coderay
+:icons: font
+// tag::properties[]
+:groupId: org.neo4j
+:artifactIdCore: neo4j-http
+:branch: main
+// end::properties[]
+
+[abstract]
+--
+This is a Proof of concept (PoC) for a Neo4j schema introspector that produces output in JSON format validating against https://github.com/neo4j/graph-schema-json-js-utils[graph-schema-json-js-utils]. It is packaged as a Neo4j user-defined function under the name `db.introspect({})`.
+--
+
+== Compiling and running
+
+You need Java 17 for this project to compile and package. It is build against Neo4j 5 and thus requires Neo4j 5 to run.
+
+Assuming Neo4j is installed in a `NEO4J_HOME`, please execute the following steps
+
+.Stop your Neo4j instance (optional)
+[source,bash]
+----
+$NEO4J_HOME/bin/neo4j stop
+----
+
+.Package this project
+[source,bash]
+----
+./mvnw -Dfast clean package
+----
+
+.Copy the resulting artifact into your Neo4j installation and start the latter
+[source,bash]
+----
+cp -v target/graph-schema-introspector-*.jar $NEO4J_HOME/plugins
+$NEO4J_HOME/bin/neo4j start
+----
+
+After a bit, the instance will have started. For the sake of a functional readme, we assume a database password `verysecret`. Here's one way to run the function wie cypher-shell
+
+NOTE: In the script below, https://stedolan.github.io/jq/[`jq`] is used to format the JSON. While the UDF can pretty print, Cypher-Shell always quotes quotes (turning `"` into `\"`), thus making the output useless. Therefor it is processed first with `sed` and then piped through `jq`.
+
+[source,bash]
+----
+$NEO4J_HOME/bin/cypher-shell -uneo4j -pverysecret --format plain  --non-interactive 'RETURN db.introspect({}) AS _json_' |  sed -e 's/\\"/"/g' -e 's/^"//g' -e 's/"$//g' -e 's/_json_//g'| jq
+----
+
+== Options
+
+The following options can be passed as parameters:
+
+
+
+|===
+|Name |Type |Meaning |Default
+
+|`prettyPrint`
+|Boolean
+|Pretty prints the generated JSON
+|`false`
+
+|`useConstantIds`
+|Boolean
+|Uses constant ids for the tokens, derived from their names. Setting this to false generates unique ids
+|`true`
+
+|`quoteTokens`
+|Boolean
+|Tokens that would need quotation and sanitization when used in Cypher statements will be treated as such by default
+|`true`
+|===
