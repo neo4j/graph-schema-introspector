@@ -165,6 +165,7 @@
 						<exclude>**/*.adoc</exclude>
 						<exclude>**/*.cypher</exclude>
 						<exclude>**/*.tpl</exclude>
+						<exclude>LICENSE.txt</exclude>
 					</excludes>
 				</configuration>
 				<executions>
