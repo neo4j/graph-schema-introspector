@@ -43,6 +43,13 @@ $NEO4J_HOME/bin/neo4j start
 
 After a bit, the instance will have started. For the sake of a functional readme, we assume a database password `verysecret`. Here's one way to run the function wie cypher-shell
 
+Just call the function like this:
+
+[source,cypher]
+----
+RETURN db.introspect({prettyPrint: true})
+----
+
 NOTE: In the script below, https://stedolan.github.io/jq/[`jq`] is used to format the JSON. While the UDF can pretty print, Cypher-Shell always quotes quotes (turning `"` into `\"`), thus making the output useless. Therefor it is processed first with `sed` and then piped through `jq`.
 
 [source,bash]
