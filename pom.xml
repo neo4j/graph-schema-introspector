@@ -284,6 +284,23 @@
 							</excludes>
 						</filter>
 					</filters>
+					<transformers>
+						<transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+					</transformers>
+					<relocations>
+						<relocation>
+							<pattern>com.fasterxml</pattern>
+							<shadedPattern>org.neo4j.graph_schema.introspector.internal.jackson</shadedPattern>
+						</relocation>
+						<relocation>
+							<pattern>com.github.f4b6a3.tsid</pattern>
+							<shadedPattern>org.neo4j.graph_schema.introspector.internal.tsid</shadedPattern>
+						</relocation>
+						<relocation>
+							<pattern>org.neo4j.cypherdsl.support.schema_name</pattern>
+							<shadedPattern>org.neo4j.graph_schema.introspector.internal.schema_name</shadedPattern>
+						</relocation>
+					</relocations>
 				</configuration>
 				<executions>
 					<execution>
