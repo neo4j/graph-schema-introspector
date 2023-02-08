@@ -51,8 +51,8 @@ import com.github.f4b6a3.tsid.TsidFactory;
  */
 final class GraphSchema {
 
-	static GraphSchema from(Transaction transaction, Config config) throws Exception {
-		return new Introspector(transaction, config).buildSchema();
+	static GraphSchema build(Transaction transaction, Config config) throws Exception {
+		return new Introspector(transaction, config).introspect();
 	}
 
 	private final Map<String, Token> nodeLabels;
@@ -141,7 +141,7 @@ final class GraphSchema {
 			this.config = config;
 		}
 
-		GraphSchema buildSchema() throws Exception {
+		GraphSchema introspect() throws Exception {
 			var nodeLabels = getNodeLabels();
 			var relationshipTypes = getRelationshipTypes();
 
@@ -188,7 +188,7 @@ final class GraphSchema {
 		 * The main algorithm of retrieving node object types (or instances). It uses the existing procedure {@code db.schema.nodeTypeProperties}
 		 * for building a map from nodeType to property sets.
 		 *
-		 * @param idGenerator The id generator
+		 * @param idGenerator    The id generator
 		 * @param labelIdToToken The map of existing token by id
 		 * @return A map with the node object instances
 		 * @throws Exception Any exception that might occur
@@ -332,7 +332,6 @@ final class GraphSchema {
 			}
 		}
 
-
 		/**
 		 * Not thread safe.
 		 */
@@ -367,23 +366,23 @@ final class GraphSchema {
 				return TSID_FACTORY.get();
 			}
 		}
-	}
 
-	/**
-	 * Not thread safe.
-	 */
-	private static class CachingUnaryOperator<T> implements UnaryOperator<T> {
+		/**
+		 * Not thread safe.
+		 */
+		private static class CachingUnaryOperator<T> implements UnaryOperator<T> {
 
-		private final Map<T, T> cache = new HashMap<>();
-		private final UnaryOperator<T> delegate;
+			private final Map<T, T> cache = new HashMap<>();
+			private final UnaryOperator<T> delegate;
 
-		CachingUnaryOperator(UnaryOperator<T> delegate) {
-			this.delegate = delegate;
-		}
+			CachingUnaryOperator(UnaryOperator<T> delegate) {
+				this.delegate = delegate;
+			}
 
-		@Override
-		public T apply(T s) {
-			return cache.computeIfAbsent(s, delegate);
+			@Override
+			public T apply(T s) {
+				return cache.computeIfAbsent(s, delegate);
+			}
 		}
 	}
 }
