@@ -1,0 +1,343 @@
+/*
+ * Copyright (c) 2023 "Neo4j,"
+ * Neo4j Sweden AB [https://neo4j.com]
+ *
+ * This file is part of Neo4j.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.neo4j.graph_schema.introspector;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
+import org.neo4j.graphdb.Direction;
+import org.neo4j.graphdb.Entity;
+import org.neo4j.graphdb.Label;
+import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.Relationship;
+import org.neo4j.graphdb.RelationshipType;
+import org.neo4j.graphdb.ResourceIterable;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+
+/**
+ * A graph-y result build from a {@link GraphSchema}. The wrapper is needed to make the Neo4j embedded API happy.
+ */
+public final class GraphSchemaGraphyResultWrapper {
+
+	static GraphSchemaGraphyResultWrapper of(GraphSchema graphSchema) {
+
+		var nodeLabelNodes = graphSchema.nodeLabels().values().stream()
+			.collect(Collectors.toMap(GraphSchema.Token::id, t -> toVirtualNode(t, "NodeLabel")));
+		var relationshipTypeNodes = graphSchema.relationshipTypes().values().stream()
+			.collect(Collectors.toMap(t -> new GraphSchema.Ref(t.id()), t -> toVirtualNode(t, "RelationshipType")));
+
+		var nodeObjectTypeNodes = new HashMap<GraphSchema.Ref, Node>();
+		var result = new GraphSchemaGraphyResultWrapper();
+
+		for (GraphSchema.NodeObjectType nodeObjectType : graphSchema.nodeObjectTypes().values()) {
+			var node = toVirtualNode(nodeObjectType);
+			nodeObjectTypeNodes.put(new GraphSchema.Ref(nodeObjectType.id()), node);
+
+			for (var ref : nodeObjectType.labels()) {
+				var tokenNode = nodeLabelNodes.get(ref.value());
+				result.relationships.add(new GraphSchemaGraphyResultWrapper.VirtualRelationship(node, "HAS_LABEL", tokenNode));
+			}
+		}
+
+		for (GraphSchema.RelationshipObjectType relationshipObjectType : graphSchema.relationshipObjectTypes().values()) {
+			var node = toVirtualNode(relationshipObjectType);
+			result.nodes.add(node);
+			result.relationships.add(new GraphSchemaGraphyResultWrapper.VirtualRelationship(node, "HAS_TYPE", relationshipTypeNodes.get(relationshipObjectType.type())));
+			result.relationships.add(new GraphSchemaGraphyResultWrapper.VirtualRelationship(node, "FROM", nodeObjectTypeNodes.get(relationshipObjectType.from())));
+			result.relationships.add(new GraphSchemaGraphyResultWrapper.VirtualRelationship(node, "TO", nodeObjectTypeNodes.get(relationshipObjectType.to())));
+		}
+
+		// Add remaining things
+		result.nodes.addAll(nodeLabelNodes.values());
+		result.nodes.addAll(relationshipTypeNodes.values());
+		result.nodes.addAll(nodeObjectTypeNodes.values());
+
+		return result;
+	}
+
+	private static Node toVirtualNode(GraphSchema.Token token, String label) {
+
+		return new GraphSchemaGraphyResultWrapper.VirtualNode(Map.of("$id", token.id(), "value", token.value()), "Token", label);
+	}
+
+	private static Node toVirtualNode(GraphSchema.NodeObjectType nodeObjectType) {
+
+		return new GraphSchemaGraphyResultWrapper.VirtualNode(Map.of("$id", nodeObjectType.id(), "properties", asJsonString(nodeObjectType.properties())), "NodeObjectType");
+	}
+
+	private static Node toVirtualNode(GraphSchema.RelationshipObjectType relationshipObjectType) {
+
+		return new GraphSchemaGraphyResultWrapper.VirtualNode(Map.of("$id", relationshipObjectType.id(), "properties", asJsonString(relationshipObjectType.properties())), "RelationshipObjectTypes");
+	}
+
+	// The nested maps render quite useless in browser
+	static String asJsonString(List<GraphSchema.Property> properties) {
+		try {
+			return Introspect.OBJECT_MAPPER.writeValueAsString(properties);
+		} catch (JsonProcessingException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	// Public field required for Neo4j internal API.
+	public final List<Node> nodes = new ArrayList<>();
+	public final List<Relationship> relationships = new ArrayList<>();
+
+	/**
+	 * A virtual entity, spotting a negative ID and a random element id.
+	 */
+	abstract static class VirtualEntity implements Entity {
+
+		private static final Supplier<Long> ID_FACTORY = new AtomicLong(-1)::decrementAndGet;
+
+		private final long id;
+
+		private final String elementId;
+
+		private final Map<String, Object> properties;
+
+		VirtualEntity(Map<String, Object> properties) {
+			this.id = ID_FACTORY.get();
+			this.elementId = String.valueOf(this.id);
+			this.properties = Map.copyOf(properties);
+		}
+
+		@SuppressWarnings("removal")
+		@Override
+		public final long getId() {
+			return id;
+		}
+
+		@Override
+		public final String getElementId() {
+			return elementId;
+		}
+
+		@Override
+		public final boolean hasProperty(String key) {
+			return properties.containsKey(key);
+		}
+
+		@Override
+		public final Object getProperty(String key) {
+			return properties.get(key);
+		}
+
+		@Override
+		public final Object getProperty(String key, Object defaultValue) {
+			return properties.getOrDefault(key, defaultValue);
+		}
+
+		@Override
+		public final void setProperty(String key, Object value) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public final Object removeProperty(String key) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public final Iterable<String> getPropertyKeys() {
+			return properties.keySet();
+		}
+
+		@Override
+		public final Map<String, Object> getProperties(String... keys) {
+			Map<String, Object> result = new HashMap<>();
+			for (String key : keys) {
+				if (!hasProperty(key)) {
+					continue;
+				}
+				result.put(key, getProperty(key));
+			}
+			return result;
+		}
+
+		@Override
+		public final Map<String, Object> getAllProperties() {
+			return properties;
+		}
+
+		@Override
+		public final void delete() {
+			throw new UnsupportedOperationException();
+		}
+	}
+
+	static final class VirtualNode extends VirtualEntity implements Node {
+
+		private final Set<Label> labels;
+
+		VirtualNode(Map<String, Object> properties, String... labels) {
+			super(properties);
+			this.labels = Arrays.stream(labels).map(Label::label).collect(Collectors.collectingAndThen(Collectors.toSet(), Set::copyOf));
+		}
+
+		@Override
+		public ResourceIterable<Relationship> getRelationships() {
+			return null;
+		}
+
+		@Override
+		public boolean hasRelationship() {
+			return false;
+		}
+
+		@Override
+		public ResourceIterable<Relationship> getRelationships(RelationshipType... types) {
+			return null;
+		}
+
+		@Override
+		public ResourceIterable<Relationship> getRelationships(Direction direction, RelationshipType... types) {
+			return null;
+		}
+
+		@Override
+		public boolean hasRelationship(RelationshipType... types) {
+			return false;
+		}
+
+		@Override
+		public boolean hasRelationship(Direction direction, RelationshipType... types) {
+			return false;
+		}
+
+		@Override
+		public ResourceIterable<Relationship> getRelationships(Direction dir) {
+			return null;
+		}
+
+		@Override
+		public boolean hasRelationship(Direction dir) {
+			return false;
+		}
+
+		@Override
+		public Relationship getSingleRelationship(RelationshipType type, Direction dir) {
+			return null;
+		}
+
+		@Override
+		public Relationship createRelationshipTo(Node otherNode, RelationshipType type) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public Iterable<RelationshipType> getRelationshipTypes() {
+			return null;
+		}
+
+		@Override
+		public int getDegree() {
+			return 0;
+		}
+
+		@Override
+		public int getDegree(RelationshipType type) {
+			return 0;
+		}
+
+		@Override
+		public int getDegree(Direction direction) {
+			return 0;
+		}
+
+		@Override
+		public int getDegree(RelationshipType type, Direction direction) {
+			return 0;
+		}
+
+		@Override
+		public void addLabel(Label label) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public void removeLabel(Label label) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public boolean hasLabel(Label label) {
+			return labels.contains(label);
+		}
+
+		@Override
+		public Iterable<Label> getLabels() {
+			return labels;
+		}
+	}
+
+	static final class VirtualRelationship extends VirtualEntity implements Relationship {
+
+		private final Node startNode;
+
+		private final Node endNode;
+
+		private final RelationshipType type;
+
+		VirtualRelationship(Node startNode, String type, Node endNode) {
+			super(Map.of());
+			this.startNode = startNode;
+			this.type = RelationshipType.withName(type);
+			this.endNode = endNode;
+		}
+
+		@Override
+		public Node getStartNode() {
+			return startNode;
+		}
+
+		@Override
+		public Node getEndNode() {
+			return endNode;
+		}
+
+		@Override
+		public Node getOtherNode(Node node) {
+			return startNode == node ? endNode : startNode;
+		}
+
+		@Override
+		public Node[] getNodes() {
+			return new Node[] {startNode, endNode};
+		}
+
+		@Override
+		public RelationshipType getType() {
+			return this.type;
+		}
+
+		@Override
+		public boolean isType(RelationshipType typeInQuestion) {
+			return this.type.equals(typeInQuestion);
+		}
+	}
+}

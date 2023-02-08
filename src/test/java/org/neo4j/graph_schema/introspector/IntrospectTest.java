@@ -71,7 +71,7 @@ class IntrospectTest {
 				CREATE (:Person) -[:REVIEWED] ->(:Book)
 				CREATE (a:Wurst) -[:```HAT_DEN`] -> (:Salat)
 				""")
-			.withFunction(Introspect.class)
+			.withProcedure(Introspect.class)
 			.build();
 	}
 
@@ -87,7 +87,7 @@ class IntrospectTest {
 		     Session session = driver.session()) {
 
 			// When
-			String result = session.run("RETURN db.introspect({useConstantIds: true, prettyPrint: true}) AS result").single().get("result").asString();
+			String result = session.run("CALL experimental.introspect.asJson({useConstantIds: true, prettyPrint: true}) YIELD value RETURN value AS result").single().get("result").asString();
 
 			System.out.println(result);
 		}

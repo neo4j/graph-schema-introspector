@@ -47,20 +47,33 @@ Just call the function like this:
 
 [source,cypher]
 ----
-RETURN db.introspect({prettyPrint: true})
+CALL experimental.introspect.asJson({prettyPrint: true})
 ----
+
+This will return a single column named `value` containing the schema of the database as valid JSON for further processing.
 
 NOTE: In the script below, https://stedolan.github.io/jq/[`jq`] is used to format the JSON. While the UDF can pretty print, Cypher-Shell always quotes quotes (turning `"` into `\"`), thus making the output useless. Therefor it is processed first with `sed` and then piped through `jq`.
 
 [source,bash]
 ----
-$NEO4J_HOME/bin/cypher-shell -uneo4j -pverysecret --format plain  --non-interactive 'RETURN db.introspect({}) AS _json_' |  sed -e 's/\\"/"/g' -e 's/^"//g' -e 's/"$//g' -e 's/_json_//g'| jq
+$NEO4J_HOME/bin/cypher-shell -uneo4j -pverysecret --format plain  --non-interactive 'CALL experimental.introspect.asJson({}) YIELD value RETURN value AS _json_' |  sed -e 's/\\"/"/g' -e 's/^"//g' -e 's/"$//g' -e 's/_json_//g'| jq
 ----
+
+A visualization of that schema can be generated with the following statement:
+
+[source,cypher]
+----
+CALL experimental.introspect.asGraph({})
+----
+
+It will visualize the schema document, not the graph itself. The result for the Movie example graph will look like this (you may have to configure the corresponding properties to be used as display names):
+
+image::docs/schema-graph.png[]
+
 
 == Options
 
 The following options can be passed as parameters:
-
 
 
 |===
