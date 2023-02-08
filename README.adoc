@@ -13,7 +13,7 @@ Michael Simons <michael.simons@neo4j.com>
 
 [abstract]
 --
-This is a Proof of concept (PoC) for a Neo4j schema introspector that produces output in JSON format validating against https://github.com/neo4j/graph-schema-json-js-utils[graph-schema-json-js-utils]. It is packaged as a Neo4j user-defined function under the name `db.introspect({})`.
+This is a Proof of concept (PoC) for a Neo4j schema introspector that produces output in JSON format validating against https://github.com/neo4j/graph-schema-json-js-utils[graph-schema-json-js-utils]. It is packaged as a Neo4j user-defined procedure under the name `experimental.introspect.asJson({})`.
 --
 
 == Compiling and running
@@ -41,9 +41,9 @@ cp -v target/graph-schema-introspector-*.jar $NEO4J_HOME/plugins
 $NEO4J_HOME/bin/neo4j start
 ----
 
-After a bit, the instance will have started. For the sake of a functional readme, we assume a database password `verysecret`. Here's one way to run the function wie cypher-shell
+After a bit, the instance will have started. For the sake of a functional readme, we assume a database password `verysecret`.
 
-Just call the function like this:
+You call the procedure like this:
 
 [source,cypher]
 ----
@@ -52,12 +52,14 @@ CALL experimental.introspect.asJson({prettyPrint: true})
 
 This will return a single column named `value` containing the schema of the database as valid JSON for further processing.
 
-NOTE: In the script below, https://stedolan.github.io/jq/[`jq`] is used to format the JSON. While the UDF can pretty print, Cypher-Shell always quotes quotes (turning `"` into `\"`), thus making the output useless. Therefor it is processed first with `sed` and then piped through `jq`.
+The following command will use Cypher-Shell to pipe the JSON (with some post-processing) through `jq` and eventually to standard out:
 
 [source,bash]
 ----
 $NEO4J_HOME/bin/cypher-shell -uneo4j -pverysecret --format plain  --non-interactive 'CALL experimental.introspect.asJson({}) YIELD value RETURN value AS _json_' |  sed -e 's/\\"/"/g' -e 's/^"//g' -e 's/"$//g' -e 's/_json_//g'| jq
 ----
+
+NOTE: In the script above, https://stedolan.github.io/jq/[`jq`] is used to format the JSON. While the UDF can pretty print, Cypher-Shell always quotes quotes (turning `"` into `\"`), thus making the output useless. Therefor it is processed first with `sed` and then piped through `jq`.
 
 A visualization of that schema can be generated with the following statement:
 
@@ -73,8 +75,7 @@ image::docs/schema-graph.png[]
 
 == Options
 
-The following options can be passed as parameters:
-
+The following options can be passed as arguments:
 
 |===
 |Name |Type |Meaning |Default

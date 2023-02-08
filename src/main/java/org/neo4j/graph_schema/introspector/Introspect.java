@@ -38,7 +38,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * <p>
  * The instrospector creates JSON ids based on the labels and types by default. It can alternatively use
  * Time-Sorted Unique Identifiers (TSID) for the ids inside the generated schema by calling it via
- * {@code RETURN db.introspect({useConstantIds: false}}
+ * {@code CALL experimental.introspect.asJson({useConstantIds: false})}
  */
 public class Introspect {
 
