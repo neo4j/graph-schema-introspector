@@ -16,7 +16,7 @@ Michael Simons <michael.simons@neo4j.com>
 This is a Proof of concept (PoC) for a Neo4j schema introspector that produces output in JSON format validating against https://github.com/neo4j/graph-schema-json-js-utils[graph-schema-json-js-utils]. It is packaged as a Neo4j user-defined procedure under the name `experimental.introspect.asJson({})`.
 --
 
-== Compiling and running
+== Compiling
 
 You need Java 17 for this project to compile and package. It is build against Neo4j 5 and thus requires Neo4j 5 to run.
 
@@ -43,6 +43,10 @@ $NEO4J_HOME/bin/neo4j start
 
 After a bit, the instance will have started. For the sake of a functional readme, we assume a database password `verysecret`.
 
+== Running
+
+=== Retrieve the schema as JSON document
+
 You call the procedure like this:
 
 [source,cypher]
@@ -60,6 +64,8 @@ $NEO4J_HOME/bin/cypher-shell -uneo4j -pverysecret --format plain  --non-interact
 ----
 
 NOTE: In the script above, https://stedolan.github.io/jq/[`jq`] is used to format the JSON. While the UDF can pretty print, Cypher-Shell always quotes quotes (turning `"` into `\"`), thus making the output useless. Therefor it is processed first with `sed` and then piped through `jq`.
+
+=== Retrieve the schema in a graphy format
 
 A visualization of that schema can be generated with the following statement:
 
