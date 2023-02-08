@@ -72,6 +72,18 @@ It will visualize the schema document, not the graph itself. The result for the 
 
 image::docs/schema-graph.png[]
 
+A graphy result that reassembles the current `db.schema.visualization` can be achieved with
+
+[source,cypher]
+----
+CALL experimental.introspect.asGraph({flat:true})
+----
+
+The same schema as above will look like this:
+
+image::docs/schema-graph-flat.png[]
+
+In both cases you'll find a `properties` field on the properties of node- and relationship object types containing the property information in the same format as the JSON field. In the latter visualization nodes that have multiple labels will only spot the first one as a `name` property and the full list will be available as standard labels or in the `$id` field in case you did use constant ids.
 
 == Options
 

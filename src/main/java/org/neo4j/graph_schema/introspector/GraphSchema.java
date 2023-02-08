@@ -55,13 +55,24 @@ final class GraphSchema {
 		return new Introspector(transaction, config).introspect();
 	}
 
+	/**
+	 * Map from label (string value) to token.
+	 */
 	private final Map<String, Token> nodeLabels;
+	/**
+	 * Map from type (string value) to token.
+	 */
 	private final Map<String, Token> relationshipTypes;
+	/**
+	 * Map from generated ID to instance.
+	 */
+	private final Map<Ref, NodeObjectType> nodeObjectTypes;
+	/**
+	 * Map from generated ID to instance.
+	 */
+	private final Map<Ref, RelationshipObjectType> relationshipObjectTypes;
 
-	private final Map<String, GraphSchema.NodeObjectType> nodeObjectTypes;
-	private final Map<String, RelationshipObjectType> relationshipObjectTypes;
-
-	private GraphSchema(Map<String, Token> nodeLabels, Map<String, Token> relationshipTypes, Map<String, NodeObjectType> nodeObjectTypes, Map<String, RelationshipObjectType> relationshipObjectTypes) {
+	private GraphSchema(Map<String, Token> nodeLabels, Map<String, Token> relationshipTypes, Map<Ref, NodeObjectType> nodeObjectTypes, Map<Ref, RelationshipObjectType> relationshipObjectTypes) {
 		this.nodeLabels = nodeLabels;
 		this.relationshipTypes = relationshipTypes;
 		this.nodeObjectTypes = nodeObjectTypes;
@@ -76,11 +87,11 @@ final class GraphSchema {
 		return relationshipTypes;
 	}
 
-	public Map<String, NodeObjectType> nodeObjectTypes() {
+	public Map<Ref, NodeObjectType> nodeObjectTypes() {
 		return nodeObjectTypes;
 	}
 
-	public Map<String, RelationshipObjectType> relationshipObjectTypes() {
+	public Map<Ref, RelationshipObjectType> relationshipObjectTypes() {
 		return relationshipObjectTypes;
 	}
 
@@ -193,7 +204,7 @@ final class GraphSchema {
 		 * @return A map with the node object instances
 		 * @throws Exception Any exception that might occur
 		 */
-		private Map<String, GraphSchema.NodeObjectType> getNodeObjectTypes(UnaryOperator<String> idGenerator, Map<String, Token> labelIdToToken) throws Exception {
+		private Map<Ref, GraphSchema.NodeObjectType> getNodeObjectTypes(UnaryOperator<String> idGenerator, Map<String, Token> labelIdToToken) throws Exception {
 
 			if (labelIdToToken.isEmpty()) {
 				return Map.of();
@@ -207,13 +218,13 @@ final class GraphSchema {
 				ORDER BY nodeType ASC
 				""";
 
-			var nodeObjectTypes = new LinkedHashMap<String, NodeObjectType>();
+			var nodeObjectTypes = new LinkedHashMap<Ref, NodeObjectType>();
 			transaction.execute(query).accept((Result.ResultVisitor<Exception>) resultRow -> {
 				@SuppressWarnings("unchecked")
 				var nodeLabels = ((List<String>) resultRow.get("nodeLabels")).stream().sorted().toList();
 
-				var id = idGenerator.apply(resultRow.getString("nodeType"));
-				var nodeObject = nodeObjectTypes.computeIfAbsent(id, key -> new GraphSchema.NodeObjectType(key, nodeLabels
+				var id = new Ref(idGenerator.apply(resultRow.getString("nodeType")));
+				var nodeObject = nodeObjectTypes.computeIfAbsent(id, key -> new GraphSchema.NodeObjectType(key.value, nodeLabels
 					.stream().map(l -> new Ref(labelIdToToken.get(l).id)).toList()));
 				extractProperty(resultRow)
 					.ifPresent(nodeObject.properties()::add);
@@ -235,7 +246,7 @@ final class GraphSchema {
 		 * @return A map with the relationship object instances
 		 * @throws Exception Any exception that might occur
 		 */
-		private Map<String, RelationshipObjectType> getRelationshipObjectTypes(
+		private Map<Ref, RelationshipObjectType> getRelationshipObjectTypes(
 			UnaryOperator<String> nodeObjectTypeIdGenerator,
 			BinaryOperator<String> idGenerator,
 			Map<String, Token> relationshipIdToToken
@@ -255,7 +266,7 @@ final class GraphSchema {
 				ORDER BY relType ASC
 				""";
 
-			var relationshipObjectTypes = new LinkedHashMap<String, RelationshipObjectType>();
+			var relationshipObjectTypes = new LinkedHashMap<Ref, RelationshipObjectType>();
 
 			transaction.execute(query).accept((Result.ResultVisitor<Exception>) resultRow -> {
 				var relType = resultRow.getString("relType");
@@ -270,9 +281,9 @@ final class GraphSchema {
 					.map(v -> "`" + v + "`")
 					.collect(Collectors.joining(":")));
 
-				var id = idGenerator.apply(relType, to);
+				var id = new Ref(idGenerator.apply(relType, to));
 				var relationshipObject = relationshipObjectTypes.computeIfAbsent(id, key ->
-					new RelationshipObjectType(key, new Ref(relationshipIdToToken.get(relType).id()), new Ref(from), new Ref(to)));
+					new RelationshipObjectType(key.value, new Ref(relationshipIdToToken.get(relType).id()), new Ref(from), new Ref(to)));
 				extractProperty(resultRow)
 					.ifPresent(relationshipObject.properties()::add);
 

@@ -86,6 +86,7 @@ public class Introspect {
 	public Stream<GraphSchemaGraphyResultWrapper> introspectAndVisualize(@Name("params") Map<String, Object> params) throws Exception {
 
 		var graphSchema = GraphSchema.build(transaction, new Config(params));
-		return Stream.of(GraphSchemaGraphyResultWrapper.of(graphSchema));
+		var flat = (boolean) params.getOrDefault("flat", false);
+		return Stream.of(flat ? GraphSchemaGraphyResultWrapper.flat(graphSchema) : GraphSchemaGraphyResultWrapper.full(graphSchema));
 	}
 }

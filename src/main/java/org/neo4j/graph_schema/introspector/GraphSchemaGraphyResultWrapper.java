@@ -28,6 +28,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import org.neo4j.graph_schema.introspector.GraphSchema.NodeObjectType;
+import org.neo4j.graph_schema.introspector.GraphSchema.Ref;
+import org.neo4j.graph_schema.introspector.GraphSchema.RelationshipObjectType;
+import org.neo4j.graph_schema.introspector.GraphSchema.Token;
 import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.Entity;
 import org.neo4j.graphdb.Label;
@@ -43,32 +47,65 @@ import com.fasterxml.jackson.core.JsonProcessingException;
  */
 public final class GraphSchemaGraphyResultWrapper {
 
-	static GraphSchemaGraphyResultWrapper of(GraphSchema graphSchema) {
+	static GraphSchemaGraphyResultWrapper flat(GraphSchema graphSchema) {
 
-		var nodeLabelNodes = graphSchema.nodeLabels().values().stream()
-			.collect(Collectors.toMap(GraphSchema.Token::id, t -> toVirtualNode(t, "NodeLabel")));
-		var relationshipTypeNodes = graphSchema.relationshipTypes().values().stream()
-			.collect(Collectors.toMap(t -> new GraphSchema.Ref(t.id()), t -> toVirtualNode(t, "RelationshipType")));
+		var nodeLabels = graphSchema.nodeLabels().values().stream()
+			.collect(Collectors.toMap(Token::id, Token::value));
+		var relationshipTypes = graphSchema.relationshipTypes().values().stream()
+			.collect(Collectors.toMap(Token::id, Token::value));
 
-		var nodeObjectTypeNodes = new HashMap<GraphSchema.Ref, Node>();
 		var result = new GraphSchemaGraphyResultWrapper();
 
-		for (GraphSchema.NodeObjectType nodeObjectType : graphSchema.nodeObjectTypes().values()) {
-			var node = toVirtualNode(nodeObjectType);
-			nodeObjectTypeNodes.put(new GraphSchema.Ref(nodeObjectType.id()), node);
+		var nodeObjectTypeNodes = new HashMap<Ref, Node>();
+		for (NodeObjectType nodeObjectType : graphSchema.nodeObjectTypes().values()) {
+			var labels = nodeObjectType.labels().stream()
+				.map(v -> nodeLabels.get(v.value()))
+				.toArray(String[]::new);
+			var node = new VirtualNode(Map.of("$id", nodeObjectType.id(), "name", labels.length == 0 ? "n/a" : labels[0], "properties", asJsonString(nodeObjectType.properties())), labels);
+			nodeObjectTypeNodes.put(new Ref(nodeObjectType.id()), node);
+		}
+		result.nodes.addAll(nodeObjectTypeNodes.values());
+
+		for (RelationshipObjectType relationshipObjectType : graphSchema.relationshipObjectTypes().values()) {
+			var relationship = new VirtualRelationship(
+				nodeObjectTypeNodes.get(relationshipObjectType.from()),
+				relationshipTypes.get(relationshipObjectType.type().value()),
+				Map.of("$id", relationshipObjectType.id(), "properties", asJsonString(relationshipObjectType.properties())),
+				nodeObjectTypeNodes.get(relationshipObjectType.to())
+			);
+			result.relationships.add(relationship);
+		}
+
+		return result;
+	}
+
+	static GraphSchemaGraphyResultWrapper full(GraphSchema graphSchema) {
+
+		var nodeLabelNodes = graphSchema.nodeLabels().values().stream()
+			.collect(Collectors.toMap(Token::id, t -> toVirtualNode(t, "NodeLabel")));
+		var relationshipTypeNodes = graphSchema.relationshipTypes().values().stream()
+			.collect(Collectors.toMap(Token::id, t -> toVirtualNode(t, "RelationshipType")));
+
+		var result = new GraphSchemaGraphyResultWrapper();
+
+		var nodeObjectTypeNodes = new HashMap<Ref, Node>();
+		for (var entry : graphSchema.nodeObjectTypes().entrySet()) {
+			var nodeObjectType = entry.getValue();
+			var node = new VirtualNode(Map.of("$id", nodeObjectType.id(), "properties", asJsonString(nodeObjectType.properties())), "NodeObjectType");
+			nodeObjectTypeNodes.put(entry.getKey(), node);
 
 			for (var ref : nodeObjectType.labels()) {
 				var tokenNode = nodeLabelNodes.get(ref.value());
-				result.relationships.add(new GraphSchemaGraphyResultWrapper.VirtualRelationship(node, "HAS_LABEL", tokenNode));
+				result.relationships.add(new VirtualRelationship(node, "HAS_LABEL", tokenNode));
 			}
 		}
 
-		for (GraphSchema.RelationshipObjectType relationshipObjectType : graphSchema.relationshipObjectTypes().values()) {
-			var node = toVirtualNode(relationshipObjectType);
+		for (RelationshipObjectType relationshipObjectType : graphSchema.relationshipObjectTypes().values()) {
+			var node = new VirtualNode(Map.of("$id", relationshipObjectType.id(), "properties", asJsonString(relationshipObjectType.properties())), "RelationshipObjectTypes");
 			result.nodes.add(node);
-			result.relationships.add(new GraphSchemaGraphyResultWrapper.VirtualRelationship(node, "HAS_TYPE", relationshipTypeNodes.get(relationshipObjectType.type())));
-			result.relationships.add(new GraphSchemaGraphyResultWrapper.VirtualRelationship(node, "FROM", nodeObjectTypeNodes.get(relationshipObjectType.from())));
-			result.relationships.add(new GraphSchemaGraphyResultWrapper.VirtualRelationship(node, "TO", nodeObjectTypeNodes.get(relationshipObjectType.to())));
+			result.relationships.add(new VirtualRelationship(node, "HAS_TYPE", relationshipTypeNodes.get(relationshipObjectType.type().value())));
+			result.relationships.add(new VirtualRelationship(node, "FROM", nodeObjectTypeNodes.get(relationshipObjectType.from())));
+			result.relationships.add(new VirtualRelationship(node, "TO", nodeObjectTypeNodes.get(relationshipObjectType.to())));
 		}
 
 		// Add remaining things
@@ -79,20 +116,11 @@ public final class GraphSchemaGraphyResultWrapper {
 		return result;
 	}
 
-	private static Node toVirtualNode(GraphSchema.Token token, String label) {
+	private static Node toVirtualNode(Token token, String label) {
 
-		return new GraphSchemaGraphyResultWrapper.VirtualNode(Map.of("$id", token.id(), "value", token.value()), "Token", label);
+		return new VirtualNode(Map.of("$id", token.id(), "value", token.value()), "Token", label);
 	}
 
-	private static Node toVirtualNode(GraphSchema.NodeObjectType nodeObjectType) {
-
-		return new GraphSchemaGraphyResultWrapper.VirtualNode(Map.of("$id", nodeObjectType.id(), "properties", asJsonString(nodeObjectType.properties())), "NodeObjectType");
-	}
-
-	private static Node toVirtualNode(GraphSchema.RelationshipObjectType relationshipObjectType) {
-
-		return new GraphSchemaGraphyResultWrapper.VirtualNode(Map.of("$id", relationshipObjectType.id(), "properties", asJsonString(relationshipObjectType.properties())), "RelationshipObjectTypes");
-	}
 
 	// The nested maps render quite useless in browser
 	static String asJsonString(List<GraphSchema.Property> properties) {
@@ -304,7 +332,11 @@ public final class GraphSchemaGraphyResultWrapper {
 		private final RelationshipType type;
 
 		VirtualRelationship(Node startNode, String type, Node endNode) {
-			super(Map.of());
+			this(startNode, type, Map.of(), endNode);
+		}
+
+		VirtualRelationship(Node startNode, String type, Map<String, Object> properties, Node endNode) {
+			super(properties);
 			this.startNode = startNode;
 			this.type = RelationshipType.withName(type);
 			this.endNode = endNode;
