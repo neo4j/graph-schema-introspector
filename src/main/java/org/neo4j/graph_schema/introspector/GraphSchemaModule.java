@@ -45,10 +45,10 @@ final class GraphSchemaModule extends SimpleModule {
 	GraphSchemaModule() {
 		addSerializer(GraphSchema.Type.class, new TypeSerializer());
 		addSerializer(GraphSchema.class, new GraphSchemaSerializer());
+		addSerializer(GraphSchema.Ref.class, new RefSerializer());
 		setMixInAnnotation(GraphSchema.Property.class, PropertyMixin.class);
 		setMixInAnnotation(GraphSchema.NodeObjectType.class, NodeObjectTypeMixin.class);
 		setMixInAnnotation(GraphSchema.Token.class, TokenMixin.class);
-		setMixInAnnotation(GraphSchema.Ref.class, RefMixin.class);
 		setMixInAnnotation(GraphSchema.RelationshipObjectType.class, RelationshipObjectTypeMixin.class);
 	}
 
@@ -133,10 +133,21 @@ final class GraphSchemaModule extends SimpleModule {
 		abstract String value();
 	}
 
-	private abstract static class RefMixin {
+	private static final class RefSerializer extends StdSerializer<GraphSchema.Ref> {
 
-		@JsonProperty("$ref")
-		abstract String value();
+		@Serial
+		private static final long serialVersionUID = -3928051476420574836L;
+
+		RefSerializer() {
+			super(GraphSchema.Ref.class);
+		}
+
+		@Override
+		public void serialize(GraphSchema.Ref value, JsonGenerator gen, SerializerProvider provider) throws IOException {
+			gen.writeStartObject();
+			gen.writeObjectField("$ref", "#" + value.value());
+			gen.writeEndObject();
+		}
 	}
 
 	private abstract static class RelationshipObjectTypeMixin {
