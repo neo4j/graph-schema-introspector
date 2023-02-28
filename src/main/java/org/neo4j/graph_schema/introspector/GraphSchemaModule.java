@@ -23,7 +23,6 @@ import java.io.Serial;
 import java.util.Collection;
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -108,14 +107,29 @@ final class GraphSchemaModule extends SimpleModule {
 		}
 	}
 
-	@JsonPropertyOrder({"token", "type", "mandatory"})
+	@JsonPropertyOrder({"token", "type", "nullable"})
 	private abstract static class PropertyMixin {
 
 		@JsonProperty("type") @JsonSerialize(using = TypeListSerializer.class)
 		abstract List<GraphSchema.Type> types();
 
-		@JsonInclude(JsonInclude.Include.NON_DEFAULT)
+		@JsonProperty("nullable") @JsonSerialize(using = InvertingBooleanSerializer.class)
 		abstract boolean mandatory();
+	}
+
+	private static class InvertingBooleanSerializer extends StdSerializer<Boolean> {
+
+		@Serial
+		private static final long serialVersionUID = 6272997898442893145L;
+
+		InvertingBooleanSerializer() {
+			super(Boolean.class);
+		}
+
+		@Override
+		public void serialize(Boolean value, JsonGenerator gen, SerializerProvider provider) throws IOException {
+			gen.writeBoolean(!Boolean.TRUE.equals(value));
+		}
 	}
 
 	private abstract static class NodeObjectTypeMixin {
