@@ -121,9 +121,14 @@ final class GraphSchema {
 		}
 	}
 
-	private static class Introspector {
+	static class Introspector {
 
-		private static final Supplier<String> TSID_FACTORY = new Supplier<String>() {
+		/**
+		 * Number of relationships to sample, defaults to the same value as used in APOC and GraphQL introspection as of writing.
+		 */
+		static final Long DEFAULT_SAMPLE_SIZE = 100L;
+
+		private static final Supplier<String> TSID_FACTORY = new Supplier<>() {
 			private final TsidFactory internalFactory = TsidFactory.builder()
 				.withRandomFunction(length -> {
 					final byte[] bytes = new byte[length];
@@ -195,6 +200,28 @@ final class GraphSchema {
 			}
 		}
 
+		private static String getRelationshipPropertiesQuery(Config config) {
+			// language=cypher
+			var template = """
+				CALL db.schema.relTypeProperties() YIELD relType, propertyName, propertyTypes, mandatory
+				WITH substring(relType, 2, size(relType)-3) AS relType, propertyName, propertyTypes, mandatory
+				CALL {
+					WITH relType, propertyName
+					MATCH (n)-[r]->(m) WHERE type(r) = relType AND (r[propertyName] IS NOT NULL OR propertyName IS NULL)
+					WITH n, r, m
+					// LIMIT
+					WITH DISTINCT labels(n) AS from, labels(m) AS to
+					RETURN from, to
+				}
+				RETURN DISTINCT from, to, relType, propertyName, propertyTypes, mandatory
+				ORDER BY relType ASC
+				""";
+			if (config.sampleOnly()) {
+				return template.replace("// LIMIT\n", "LIMIT " + DEFAULT_SAMPLE_SIZE + "\n");
+			}
+			return template;
+		}
+
 		/**
 		 * The main algorithm of retrieving node object types (or instances). It uses the existing procedure {@code db.schema.nodeTypeProperties}
 		 * for building a map from nodeType to property sets.
@@ -256,15 +283,7 @@ final class GraphSchema {
 				return Map.of();
 			}
 
-			// language=cypher
-			var query = """
-				CALL db.schema.relTypeProperties() YIELD relType, propertyName, propertyTypes, mandatory
-				WITH substring(relType, 2, size(relType)-3) AS relType, propertyName, propertyTypes, mandatory
-				MATCH (n)-[r]->(m) WHERE type(r) = relType
-				WITH DISTINCT labels(n) AS from, labels(m) AS to, relType, propertyName, propertyTypes, mandatory
-				RETURN *
-				ORDER BY relType ASC
-				""";
+			var query = getRelationshipPropertiesQuery(config);
 
 			var relationshipObjectTypes = new LinkedHashMap<Ref, RelationshipObjectType>();
 

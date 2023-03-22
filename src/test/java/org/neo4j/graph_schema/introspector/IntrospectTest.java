@@ -25,14 +25,11 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.StringWriter;
 
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
-import org.neo4j.driver.Driver;
 import org.neo4j.driver.GraphDatabase;
-import org.neo4j.driver.Session;
 import org.neo4j.harness.Neo4j;
 import org.neo4j.harness.Neo4jBuilders;
 
@@ -52,7 +49,6 @@ class IntrospectTest {
 
 		this.embeddedDatabaseServer = Neo4jBuilders.newInProcessBuilder()
 			.withDisabledServer()
-			//.withFixture(sw.toString())
 			// language=cypher
 			.withFixture("""
 				UNWIND range(1, 5) AS i

@@ -112,4 +112,9 @@ The following options can be passed as arguments:
 |Boolean
 |Tokens that would need quotation and sanitization when used in Cypher statements will be treated as such by default
 |`true`
+
+|`sampleOnly`
+|Boolean
+|By default, only 100 distinct relationships between two nodes are sampled to determine the concrete relationships (read: not only the type, but with start and end) owning a set of properties
+|`true`
 |===

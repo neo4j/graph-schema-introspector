@@ -56,14 +56,16 @@ public class Introspect {
 	 * @param useConstantIds Whether to use constant ids (derived from tokens) or generate ids
 	 * @param prettyPrint    Whether to pretty print the result or not
 	 * @param quoteTokens    Whether to always quote tokens or not
+	 * @param sampleOnly     Whether to sample relationships for determining properties on concrete relationships or not (defaults to {@literal true})
 	 */
-	record Config(boolean useConstantIds, boolean prettyPrint, boolean quoteTokens) {
+	record Config(boolean useConstantIds, boolean prettyPrint, boolean quoteTokens, boolean sampleOnly) {
 
 		Config(Map<String, Object> params) {
 			this(
 				(boolean) params.getOrDefault("useConstantIds", true),
 				(boolean) params.getOrDefault("prettyPrint", false),
-				(boolean) params.getOrDefault("quoteTokens", true)
+				(boolean) params.getOrDefault("quoteTokens", true),
+				(boolean) params.getOrDefault("sampleOnly", true)
 			);
 		}
 	}
