@@ -128,7 +128,7 @@ final class GraphSchema {
 		 */
 		static final Long DEFAULT_SAMPLE_SIZE = 100L;
 
-		private static final Supplier<String> TSID_FACTORY = new Supplier<>() {
+		private static final Supplier<String> ID_GENERATOR = new Supplier<>() {
 			private final TsidFactory internalFactory = TsidFactory.builder()
 				.withRandomFunction(length -> {
 					final byte[] bytes = new byte[length];
@@ -172,12 +172,12 @@ final class GraphSchema {
 
 		private Map<String, Token> getNodeLabels() throws Exception {
 
-			return getToken(transaction.getAllLabelsInUse(), Label::name, config.quoteTokens(), config.useConstantIds() ? "nl:%s"::formatted : ignored -> TSID_FACTORY.get());
+			return getToken(transaction.getAllLabelsInUse(), Label::name, config.quoteTokens(), config.useConstantIds() ? "nl:%s"::formatted : ignored -> ID_GENERATOR.get());
 		}
 
 		private Map<String, Token> getRelationshipTypes() throws Exception {
 
-			return getToken(transaction.getAllRelationshipTypesInUse(), RelationshipType::name, config.quoteTokens(), config.useConstantIds() ? "rt:%s"::formatted : ignored -> TSID_FACTORY.get());
+			return getToken(transaction.getAllRelationshipTypesInUse(), RelationshipType::name, config.quoteTokens(), config.useConstantIds() ? "rt:%s"::formatted : ignored -> ID_GENERATOR.get());
 		}
 
 		private <T> Map<String, Token> getToken(Iterable<T> tokensInUse, Function<T, String> nameExtractor, boolean quoteTokens, UnaryOperator<String> idGenerator) throws Exception {
@@ -358,7 +358,7 @@ final class GraphSchema {
 					return splitStripAndJoin(nodeType, "n");
 				}
 
-				return TSID_FACTORY.get();
+				return ID_GENERATOR.get();
 			}
 		}
 
@@ -393,7 +393,7 @@ final class GraphSchema {
 					}
 				}
 
-				return TSID_FACTORY.get();
+				return ID_GENERATOR.get();
 			}
 		}
 
