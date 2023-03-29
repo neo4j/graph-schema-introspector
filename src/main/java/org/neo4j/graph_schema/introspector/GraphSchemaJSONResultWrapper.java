@@ -18,10 +18,19 @@
  */
 package org.neo4j.graph_schema.introspector;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+
 /**
  * Wrapper for a string, needed for Neo4j Procedures.
  *
  * @param value The wrapped value
  */
 public record GraphSchemaJSONResultWrapper(String value) {
+
+	public static GraphSchemaJSONResultWrapper of(GraphSchema graphSchema, Introspect.Config config) throws JsonProcessingException {
+
+		var objectMapper = GraphSchemaModule.getGraphSchemaObjectMapper();
+		var writer = config.prettyPrint() ? objectMapper.writerWithDefaultPrettyPrinter() : objectMapper.writer();
+		return new GraphSchemaJSONResultWrapper(writer.writeValueAsString(graphSchema));
+	}
 }

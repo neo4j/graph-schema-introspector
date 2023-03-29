@@ -26,7 +26,9 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.module.SimpleModule;
@@ -41,7 +43,34 @@ final class GraphSchemaModule extends SimpleModule {
 	@Serial
 	private static final long serialVersionUID = -4886300307467434436L;
 
-	GraphSchemaModule() {
+	private static volatile ObjectMapper OBJECT_MAPPER;
+
+	static ObjectMapper getGraphSchemaObjectMapper() {
+		var result = OBJECT_MAPPER;
+		if (result == null) {
+			synchronized (GraphSchemaModule.class) {
+				result = OBJECT_MAPPER;
+				if (result == null) {
+					OBJECT_MAPPER = new ObjectMapper();
+					OBJECT_MAPPER.registerModule(new GraphSchemaModule());
+					result = OBJECT_MAPPER;
+				}
+			}
+
+		}
+		return result;
+	}
+
+	// The nested maps render quite useless in browser
+	static String asJsonString(List<GraphSchema.Property> properties) {
+		try {
+			return getGraphSchemaObjectMapper().writeValueAsString(properties);
+		} catch (JsonProcessingException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	private GraphSchemaModule() {
 		addSerializer(GraphSchema.Type.class, new TypeSerializer());
 		addSerializer(GraphSchema.class, new GraphSchemaSerializer());
 		addSerializer(GraphSchema.Ref.class, new RefSerializer());

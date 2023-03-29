@@ -28,8 +28,6 @@ import org.neo4j.procedure.Mode;
 import org.neo4j.procedure.Name;
 import org.neo4j.procedure.Procedure;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 /**
  * UDF for creating a Graph database schema according to the format defined here:
  * <a href="https://github.com/neo4j/graph-schema-json-js-utils">graph-schema-json-js-utils</a>, see scheme
@@ -41,11 +39,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * {@code CALL experimental.introspect.asJson({useConstantIds: false})}
  */
 public class Introspect {
-
-	static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-	static {
-		OBJECT_MAPPER.registerModule(new GraphSchemaModule());
-	}
 
 	@Context
 	public Transaction transaction;
@@ -79,8 +72,7 @@ public class Introspect {
 		var config = new Config(params);
 		var graphSchema = GraphSchema.build(transaction, config);
 
-		var writer = config.prettyPrint() ? OBJECT_MAPPER.writerWithDefaultPrettyPrinter() : OBJECT_MAPPER.writer();
-		return Stream.of(new GraphSchemaJSONResultWrapper(writer.writeValueAsString(graphSchema)));
+		return Stream.of(GraphSchemaJSONResultWrapper.of(graphSchema, config));
 	}
 
 	@Procedure(name = "experimental.introspect.asGraph", mode = Mode.READ)

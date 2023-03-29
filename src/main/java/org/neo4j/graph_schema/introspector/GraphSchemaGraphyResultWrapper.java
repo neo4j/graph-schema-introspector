@@ -40,8 +40,6 @@ import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.RelationshipType;
 import org.neo4j.graphdb.ResourceIterable;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-
 /**
  * A graph-y result build from a {@link GraphSchema}. The wrapper is needed to make the Neo4j embedded API happy.
  */
@@ -61,7 +59,7 @@ public final class GraphSchemaGraphyResultWrapper {
 			var labels = nodeObjectType.labels().stream()
 				.map(v -> nodeLabels.get(v.value()))
 				.toArray(String[]::new);
-			var node = new VirtualNode(Map.of("$id", nodeObjectType.id(), "name", labels.length == 0 ? "n/a" : labels[0], "properties", asJsonString(nodeObjectType.properties())), labels);
+			var node = new VirtualNode(Map.of("$id", nodeObjectType.id(), "name", labels.length == 0 ? "n/a" : labels[0], "properties", GraphSchemaModule.asJsonString(nodeObjectType.properties())), labels);
 			nodeObjectTypeNodes.put(new Ref(nodeObjectType.id()), node);
 		}
 		result.nodes.addAll(nodeObjectTypeNodes.values());
@@ -70,7 +68,7 @@ public final class GraphSchemaGraphyResultWrapper {
 			var relationship = new VirtualRelationship(
 				nodeObjectTypeNodes.get(relationshipObjectType.from()),
 				relationshipTypes.get(relationshipObjectType.type().value()),
-				Map.of("$id", relationshipObjectType.id(), "properties", asJsonString(relationshipObjectType.properties())),
+				Map.of("$id", relationshipObjectType.id(), "properties", GraphSchemaModule.asJsonString(relationshipObjectType.properties())),
 				nodeObjectTypeNodes.get(relationshipObjectType.to())
 			);
 			result.relationships.add(relationship);
@@ -91,7 +89,7 @@ public final class GraphSchemaGraphyResultWrapper {
 		var nodeObjectTypeNodes = new HashMap<Ref, Node>();
 		for (var entry : graphSchema.nodeObjectTypes().entrySet()) {
 			var nodeObjectType = entry.getValue();
-			var node = new VirtualNode(Map.of("$id", nodeObjectType.id(), "properties", asJsonString(nodeObjectType.properties())), "NodeObjectType");
+			var node = new VirtualNode(Map.of("$id", nodeObjectType.id(), "properties", GraphSchemaModule.asJsonString(nodeObjectType.properties())), "NodeObjectType");
 			nodeObjectTypeNodes.put(entry.getKey(), node);
 
 			for (var ref : nodeObjectType.labels()) {
@@ -101,7 +99,7 @@ public final class GraphSchemaGraphyResultWrapper {
 		}
 
 		for (RelationshipObjectType relationshipObjectType : graphSchema.relationshipObjectTypes().values()) {
-			var node = new VirtualNode(Map.of("$id", relationshipObjectType.id(), "properties", asJsonString(relationshipObjectType.properties())), "RelationshipObjectTypes");
+			var node = new VirtualNode(Map.of("$id", relationshipObjectType.id(), "properties", GraphSchemaModule.asJsonString(relationshipObjectType.properties())), "RelationshipObjectTypes");
 			result.nodes.add(node);
 			result.relationships.add(new VirtualRelationship(node, "HAS_TYPE", relationshipTypeNodes.get(relationshipObjectType.type().value())));
 			result.relationships.add(new VirtualRelationship(node, "FROM", nodeObjectTypeNodes.get(relationshipObjectType.from())));
@@ -119,16 +117,6 @@ public final class GraphSchemaGraphyResultWrapper {
 	private static Node toVirtualNode(Token token, String label) {
 
 		return new VirtualNode(Map.of("$id", token.id(), "value", token.value()), "Token", label);
-	}
-
-
-	// The nested maps render quite useless in browser
-	static String asJsonString(List<GraphSchema.Property> properties) {
-		try {
-			return Introspect.OBJECT_MAPPER.writeValueAsString(properties);
-		} catch (JsonProcessingException e) {
-			throw new RuntimeException(e);
-		}
 	}
 
 	// Public field required for Neo4j internal API.
