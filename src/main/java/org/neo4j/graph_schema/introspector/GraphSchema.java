@@ -72,7 +72,7 @@ final class GraphSchema {
 	 */
 	private final Map<Ref, RelationshipObjectType> relationshipObjectTypes;
 
-	private GraphSchema(Map<String, Token> nodeLabels, Map<String, Token> relationshipTypes, Map<Ref, NodeObjectType> nodeObjectTypes, Map<Ref, RelationshipObjectType> relationshipObjectTypes) {
+	GraphSchema(Map<String, Token> nodeLabels, Map<String, Token> relationshipTypes, Map<Ref, NodeObjectType> nodeObjectTypes, Map<Ref, RelationshipObjectType> relationshipObjectTypes) {
 		this.nodeLabels = nodeLabels;
 		this.relationshipTypes = relationshipTypes;
 		this.nodeObjectTypes = nodeObjectTypes;

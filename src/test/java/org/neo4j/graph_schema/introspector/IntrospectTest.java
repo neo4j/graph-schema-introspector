@@ -19,6 +19,7 @@
 package org.neo4j.graph_schema.introspector;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -327,6 +328,9 @@ class IntrospectTest {
 
 			var result = session.run("CALL experimental.introspect.asJson({useConstantIds: true, prettyPrint: true}) YIELD value RETURN value AS result").single().get("result").asString();
 			assertThat(result).isEqualTo(expected);
+
+			var graphSchemaObjectMapper = GraphSchemaModule.getGraphSchemaObjectMapper();
+			assertThatNoException().isThrownBy(() -> graphSchemaObjectMapper.readValue(result, GraphSchema.class));
 		}
 	}
 }
